@@ -7,14 +7,18 @@ ARG ros_distro
 ARG uid
 ARG gid
 
+ENV NVIDIA_VISIBLE_DEVICES \
+    ${NVIDIA_VISIBLE_DEVICES:-all}
+ENV NVIDIA_DRIVER_CAPABILITIES \
+    ${NVIDIA_DRIVER_CAPABILITIES:+$NVIDIA_DRIVER_CAPABILITIES,}graphics
+
 RUN apt-get update && \
 	DEBIAN_FRONTEND=noninteractive apt-get -yq --force-yes install \
 		sudo \
 		python-catkin-tools \
 		dialog \
 		less \
-		x-window-system \
-		mesa-utils
+		x-window-system
 
 RUN mkdir -p /home/${ros_distro}-dev/catkin_ws/src && \
     echo "${ros_distro}-dev:x:${uid}:${gid}:Developer,,,:/home/${ros_distro}-dev:/bin/bash" >> /etc/passwd && \

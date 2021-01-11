@@ -5,13 +5,15 @@
 # If not running interactively, don't do anything
 [[ $- != *i* ]] && return
 
+alias ..='cd ..'
 alias ls='ls --color=auto'
+alias la='ls -la'
 alias ll='ls -l'
 alias rm='rm -i'
 alias mv='mv -i'
 alias cp='cp -i'
 alias grep='grep --color=auto'
-export EDITOR='vim'
+export EDITOR='nano'
 export LESS="-iMSx4 -FX -SR"
 alias less="less ${LESS}"
 export PAGER="less ${LESS}"

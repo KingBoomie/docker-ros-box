@@ -2,105 +2,124 @@
 
 set -e
 
-current_dir=`pwd -P`
-script_dir="$( cd "$(dirname "$0")" ; pwd -P )"
+current_dir=$(pwd -P)
+script_dir="$(
+  cd "$(dirname "$0")"
+  pwd -P
+)"
 
 sudo=y
 
 # If user is part of docker group, sudo isn't necessary
 if groups $USER | grep &>/dev/null '\bdocker\b'; then
-    sudo=n
+  sudo=n
 fi
 
-if [ "$2" == "" ]
-then
-	echo
-	echo "Builds a docker image to run ROS and deploys a basic setup to work with it"
-	echo
-	echo "Usage: `basename $0` [ros_distro] [target]"
-	echo "    ros_distro        The ROS distribution to work with (lunar, kinetic, etc.)"
-	echo "    target            The target directory to deploy the basic setup"
-	echo
-	exit 1
+if [ "$2" == "" ]; then
+  echo
+  echo "Builds a docker image to run ROS and deploys a basic setup to work with it"
+  echo
+  echo "Usage: $(basename $0) [ros_distro] [target]"
+  echo "    ros_distro        The ROS distribution to work with (lunar, kinetic, etc.)"
+  echo "    target            The target directory to deploy the basic setup"
+  echo
+  exit 1
 fi
 
 ros_distro="$1"
 target="$2"
 image_tag="docker-ros-box-${ros_distro}"
-uid=`id -u`
-gid=`id -g`
+uid=$(id -u)
+gid=$(id -g)
 user_name="${ros_distro}-dev"
 
 # Make sure the target exists
-if [ ! -d "${target}" ]
-then
-	mkdir -p "${target}"
+if [ ! -d "${target}" ]; then
+  mkdir -p "${target}"
 fi
-target=$( cd "${target}" ; pwd -P )
-
+target=$(
+  cd "${target}"
+  pwd -P
+)
 
 echo "Prepare the target environment..."
 # Copy target files
 /bin/cp -Ri "${script_dir}/target/"* "${target}/"
-if [ ! -d "${target}/src" ]
-then
-	mkdir "${target}/src"
+if [ ! -d "${target}/src" ]; then
+  mkdir "${target}/src"
 fi
 
 # Build the docker image
 echo "Build the docker image... (This can take some time)"
 cd "${script_dir}/docker"
 if [ "$sudo" = "n" ]; then
-    docker build \
-        --quiet \
-	    --build-arg ros_distro="${ros_distro}" \
-        --build-arg uid="${uid}" \
-        --build-arg gid="${gid}" \
-    	-t ${image_tag} \
-    	.
+  docker build \
+    --quiet \
+    --build-arg ros_distro="${ros_distro}" \
+    --build-arg uid="${uid}" \
+    --build-arg gid="${gid}" \
+    -t ${image_tag} \
+    .
 else
-    sudo docker build \
-        --quiet \
-	    --build-arg ros_distro="${ros_distro}" \
-        --build-arg uid="${uid}" \
-        --build-arg gid="${gid}" \
-    	-t ${image_tag} \
-    	.
+  sudo docker build \
+    --quiet \
+    --build-arg ros_distro="${ros_distro}" \
+    --build-arg uid="${uid}" \
+    --build-arg gid="${gid}" \
+    -t ${image_tag} \
+    .
 fi
 
 echo "create a new container from this image..."
-container_name="`echo ${target} | sed -e 's/[^a-zA-Z0-9_.-][^a-zA-Z0-9_.-]*/-/g' | sed -e 's/^[^a-zA-Z0-9]*//g'`"
+container_name="$(echo ${target} | sed -e 's/[^a-zA-Z0-9_.-][^a-zA-Z0-9_.-]*/-/g' | sed -e 's/^[^a-zA-Z0-9]*//g')"
 cd "${target}"
 
 XSOCK=/tmp/.X11-unix
 XAUTH=/tmp/.docker.xauth
-touch $XAUTH
-xauth nlist $DISPLAY | sed -e 's/^..../ffff/' | xauth -f $XAUTH nmerge -
+
+if [ ! -f $XAUTH ]; then
+  xauth_list=$(xauth nlist :0 | sed -e 's/^..../ffff/')
+  if [ ! -z "$xauth_list" ]; then
+    echo $xauth_list | xauth -f $XAUTH nmerge -
+  else
+    touch $XAUTH
+  fi
+  chmod a+r $XAUTH
+fi
+
+echo "$DISPLAY"
+echo "${target}"
+echo "${container_name}"
+echo "${image_tag}"
 
 if [ "$sudo" = "n" ]; then
-    docker create \
-            -e DISPLAY=$DISPLAY \
-            --volume=$XSOCK:$XSOCK:rw \
-            --volume=$XAUTH:$XAUTH:rw \
-            --env="XAUTHORITY=${XAUTH}" \
-            --device=/dev/dri/card0:/dev/dri/card0 \
-            -v "${target}/src:/home/${ros_distro}-dev/catkin_ws/src" \
-            --name "${container_name}" \
-            -it ${image_tag}
+  docker create \
+    --env="DISPLAY=$DISPLAY" \
+    --env="QT_X11_NO_MITSHM=1" \
+    --env="XAUTHORITY=${XAUTH}" \
+    --volume=$XSOCK:$XSOCK:rw \
+    --volume=$XAUTH:$XAUTH:rw \
+    --device=/dev/dri/card0:/dev/dri/card0 \
+    --runtime=nvidia \
+  -v "${target}:/home/${ros_distro}-dev/catkin_ws" \
+    --name "${container_name}" \
+    -it ${image_tag}
 
-    docker ps -aqf "name=${container_name}" > "${target}/docker_id"
+  docker ps -aqf "name=${container_name}" >"${target}/docker_id"
 else
-    sudo docker create \
-            -e DISPLAY=$DISPLAY \
-            --volume=$XSOCK:$XSOCK:rw \
-            --volume=$XAUTH:$XAUTH:rw \
-            --env="XAUTHORITY=${XAUTH}" \
-            --device=/dev/dri/card0:/dev/dri/card0 \
-            -v "${target}/src:/home/${ros_distro}-dev/catkin_ws/src" \
-            --name "${container_name}" \
-            -it ${image_tag}
+  sudo docker create \
+    --env="DISPLAY=$DISPLAY" \
+    --env="QT_X11_NO_MITSHM=1" \
+    --env="XAUTHORITY=${XAUTH}" \
+    --volume=$XSOCK:$XSOCK:rw \
+    --volume=$XAUTH:$XAUTH:rw \
+    --device=/dev/dri/card0:/dev/dri/card0 \
+    --runtime=nvidia \
+  -v "${target}:/home/${ros_distro}-dev/catkin_ws" \
+    --name "${container_name}" \
+    -it ${image_tag}
 
-    sudo docker ps -aqf "name=${container_name}" > "${target}/docker_id"
+  sudo docker ps -aqf "name=${container_name}" >"${target}/docker_id"
 fi
 chmod 444 "${target}/docker_id"
 
