@@ -2,13 +2,13 @@
 
 current_dir=`pwd -P`
 script_dir="$( cd "$(dirname "$0")" ; pwd -P )"
-container_id=`cat "${script_dir}/docker_id"`
+container_id=$(cat "${script_dir}/docker_id")
 
 sudo=y
 
 # If user is part of docker group, sudo isn't necessary
 if groups $USER | grep &>/dev/null '\bdocker\b'; then
-    sudo = n
+    sudo=n
 fi
 
 if [ "${container_id}" == "" ]

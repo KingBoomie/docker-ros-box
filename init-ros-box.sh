@@ -74,6 +74,7 @@ echo "create a new container from this image..."
 container_name="$(echo ${target} | sed -e 's/[^a-zA-Z0-9_.-][^a-zA-Z0-9_.-]*/-/g' | sed -e 's/^[^a-zA-Z0-9]*//g')"
 cd "${target}"
 
+sudo chown 1000:1000 /tmp/.docker.xauth
 XSOCK=/tmp/.X11-unix
 XAUTH=/tmp/.docker.xauth
 
@@ -101,7 +102,7 @@ if [ "$sudo" = "n" ]; then
     --volume=$XAUTH:$XAUTH:rw \
     --device=/dev/dri/card0:/dev/dri/card0 \
     --runtime=nvidia \
-  -v "${target}:/home/${ros_distro}-dev/catkin_ws" \
+    -v "${target}/src:/home/${ros_distro}-dev/catkin_ws/src" \
     --name "${container_name}" \
     -it ${image_tag}
 
@@ -115,7 +116,7 @@ else
     --volume=$XAUTH:$XAUTH:rw \
     --device=/dev/dri/card0:/dev/dri/card0 \
     --runtime=nvidia \
-  -v "${target}:/home/${ros_distro}-dev/catkin_ws" \
+    -v "${target}/src:/home/${ros_distro}-dev/catkin_ws/src" \
     --name "${container_name}" \
     -it ${image_tag}
 
